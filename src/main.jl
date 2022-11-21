@@ -1,6 +1,6 @@
 include("gas_flow.jl")
 include("flux_solver.jl")
-include("hll.jl")
+include("hllc.jl")
 
 import JSON
 using Printf
@@ -8,7 +8,7 @@ using StaticArrays
 
 import Main.FluxSolver
 import Main.GasFlow
-import Main.HLL
+import Main.HLLC
 
 const CFL::Float64 = 0.2
 
@@ -60,7 +60,7 @@ function calculate_fluxes!(state::State)
     left = get_left_params(state, i_knot)
     right = get_right_params(state, i_knot)
 
-    solution = HLL.State(left, right)
+    solution = HLLC.State(left, right)
     state.F[i_knot] = FluxSolver.get_flux(solution)
 
     S_l, S_r = FluxSolver.get_wave_velocities(solution)
