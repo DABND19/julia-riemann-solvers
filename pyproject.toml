@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "julia-riemann-solver"
+version = "0.1.0"
+description = ""
+authors = ["David Grigorenko"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "julia_riemann_solver"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+numpy = "^1.23.5"
+matplotlib = "^3.6.2"
+jmespath = "^1.0.1"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
