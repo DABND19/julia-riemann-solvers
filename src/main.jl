@@ -24,21 +24,52 @@ mutable struct State
     return new(
       x,
       map(GasFlow.to_conservative, flow),
-      [@SVector zeros(Float64, 3) for _ in range(1, length(x))],
+      [@SVector zeros(Float64, 3) for _ in x],
       0.0,
       0.0
     )
   end
 end
 
+function minmod(x::Float64, y::Float64)::Float64
+  if sign(x) != sign(y)
+    return 0.0
+  end
+  return sign(x) * min(abs(x), abs(y))
+end
+
 function get_left_params(state::State, i_knot::Int)::GasFlow.Params
   @assert i_knot != firstindex(state.F)
-  return GasFlow.from_conservative(state.u[i_knot-1])
+  current = GasFlow.from_conservative(state.u[i_knot-1])
+
+  if i_knot == firstindex(state.F) + 1 || i_knot == lastindex(state.F) - 1
+    return current
+  end
+  prev = GasFlow.from_conservative(state.u[i_knot-2])
+  next = GasFlow.from_conservative(state.u[i_knot])
+
+  return GasFlow.Params(
+    current.pressure + 0.5 * minmod(next.pressure - current.pressure, current.pressure - prev.pressure),
+    current.density + 0.5 * minmod(next.density - current.density, current.density - prev.density),
+    current.velocity + 0.5 * minmod(next.velocity - current.velocity, current.velocity - prev.velocity)
+  )
 end
 
 function get_right_params(state::State, i_knot::Int)::GasFlow.Params
   @assert i_knot != lastindex(state.F)
-  return GasFlow.from_conservative(state.u[i_knot])
+  current = GasFlow.from_conservative(state.u[i_knot])
+
+  if i_knot == firstindex(state.F) + 1 || i_knot == lastindex(state.F) - 1
+    return current
+  end
+  prev = GasFlow.from_conservative(state.u[i_knot-1])
+  next = GasFlow.from_conservative(state.u[i_knot+1])
+
+  return GasFlow.Params(
+    current.pressure - 0.5 * minmod(next.pressure - current.pressure, current.pressure - prev.pressure),
+    current.density - 0.5 * minmod(next.density - current.density, current.density - prev.density),
+    current.velocity - 0.5 * minmod(next.velocity - current.velocity, current.velocity - prev.velocity)
+  )
 end
 
 function get_left_boundary_condition(state::State)::SVector{3,Float64}
@@ -99,7 +130,7 @@ function run!(state::State, t_end::Float64)
   end
 end
 
-const CELLS_COUNT = 5000
+const CELLS_COUNT::Int = 5000
 const X_LEFT::Float64 = -1.0
 const X_RIGHT::Float64 = 1.0
 const X_DIAPH::Float64 = 0.0
