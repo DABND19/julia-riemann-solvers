@@ -4,6 +4,7 @@ include("hll.jl")
 
 import JSON
 using Printf
+using StaticArrays
 
 import Main.FluxSolver
 import Main.GasFlow
@@ -13,8 +14,8 @@ const CFL::Float64 = 0.2
 
 mutable struct State
   x::Vector{Float64}
-  u::Vector{Vector{Float64}}
-  F::Vector{Vector{Float64}}
+  u::Vector{SVector{3,Float64}}
+  F::Vector{SVector{3,Float64}}
   t::Float64
   dt::Float64
 
@@ -23,7 +24,7 @@ mutable struct State
     return new(
       x,
       map(GasFlow.to_conservative, flow),
-      [zeros(Float64, 3) for _ in range(1, length(x))],
+      [@SVector zeros(Float64, 3) for _ in range(1, length(x))],
       0.0,
       0.0
     )
@@ -40,12 +41,12 @@ function get_right_params(state::State, i_knot::Int)::GasFlow.Params
   return GasFlow.from_conservative(state.u[i_knot])
 end
 
-function get_left_boundary_condition(state::State)::Vector{Float64}
+function get_left_boundary_condition(state::State)::SVector{3,Float64}
   flow = GasFlow.from_conservative(first(state.u))
   return GasFlow.to_flux(flow)
 end
 
-function get_right_boundary_condition(state::State)::Vector{Float64}
+function get_right_boundary_condition(state::State)::SVector{3,Float64}
   flow = GasFlow.from_conservative(last(state.u))
   return GasFlow.to_flux(flow)
 end
@@ -74,7 +75,7 @@ function calculate_fluxes!(state::State)
   end
 end
 
-function difference_schema(state::State, i_cell::Int)::Vector{Float64}
+function difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
   u = state.u[i_cell]
   F_l = state.F[i_cell]
   F_r = state.F[i_cell+1]

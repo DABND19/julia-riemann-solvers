@@ -1,6 +1,7 @@
 module GasFlow
 
 import JSON
+using StaticArrays
 
 const GAMMA::Float64 = 5.0 / 3.0
 
@@ -29,8 +30,7 @@ function mach_number(flow::Params)::Float64
   return abs(flow.velocity) / sound_speed(flow)
 end
 
-function from_conservative(u::Vector{Float64})::Params
-  @assert length(u) == 3
+function from_conservative(u::SVector{3, Float64})::Params
   u_1, u_2, u_3 = u
 
   density::Float64 = u_1
@@ -43,16 +43,16 @@ function from_conservative(u::Vector{Float64})::Params
   return Params(pressure, density, velocity)
 end
 
-function to_conservative(flow::Params)::Vector{Float64}
-  return [
+function to_conservative(flow::Params)::SVector{3, Float64}
+  return @SVector [
     flow.density,
     flow.density * flow.velocity,
     flow.density * total_energy(flow)
   ]
 end
 
-function to_flux(flow::Params)::Vector{Float64}
-  return [
+function to_flux(flow::Params)::SVector{3, Float64}
+  return @SVector [
     flow.density * flow.velocity,
     flow.pressure + flow.density * flow.velocity^2,
     flow.density * total_energy(flow) * flow.velocity + flow.pressure * flow.velocity

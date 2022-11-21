@@ -1,9 +1,9 @@
 module HLL
 
+using StaticArrays
+
 import Main.FluxSolver
 import Main.GasFlow
-
-
 
 struct State <: FluxSolver.State
   left::GasFlow.Params
@@ -22,7 +22,7 @@ function FluxSolver.get_wave_velocities(state::State)::Tuple{Float64,Float64}
   )
 end
 
-function FluxSolver.get_flux(state::State)::Vector{Float64}
+function FluxSolver.get_flux(state::State)::SVector{3,Float64}
   s::Float64 = 0.0
   S_l, S_r = FluxSolver.get_wave_velocities(state)
 
