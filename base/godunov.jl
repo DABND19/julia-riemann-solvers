@@ -36,6 +36,14 @@ function minmod(x::Float64, y::Float64)::Float64
   return sign(x) * min(abs(x), abs(y))
 end
 
+function left_minmod(prev::Float64, current::Float64, next::Float64)::Float64
+  return current + 0.5 * minmod(next - current, current - prev)
+end
+
+function right_minmod(prev::Float64, current::Float64, next::Float64)::Float64
+  return current - 0.5 * minmod(next - current, current - prev)
+end
+
 function get_left_params(state::State, i_knot::Int)::GasFlow.Params
   @assert i_knot != firstindex(state.F)
   current = GasFlow.from_conservative(state.u[i_knot-1])
@@ -47,9 +55,9 @@ function get_left_params(state::State, i_knot::Int)::GasFlow.Params
   next = GasFlow.from_conservative(state.u[i_knot])
 
   return GasFlow.Params(
-    current.pressure + 0.5 * minmod(next.pressure - current.pressure, current.pressure - prev.pressure),
-    current.density + 0.5 * minmod(next.density - current.density, current.density - prev.density),
-    current.velocity + 0.5 * minmod(next.velocity - current.velocity, current.velocity - prev.velocity)
+    left_minmod(prev.pressure, current.pressure, next.pressure),
+    left_minmod(prev.density, current.density, next.density),
+    left_minmod(prev.velocity, current.velocity, next.velocity)
   )
 end
 
@@ -64,9 +72,9 @@ function get_right_params(state::State, i_knot::Int)::GasFlow.Params
   next = GasFlow.from_conservative(state.u[i_knot+1])
 
   return GasFlow.Params(
-    current.pressure - 0.5 * minmod(next.pressure - current.pressure, current.pressure - prev.pressure),
-    current.density - 0.5 * minmod(next.density - current.density, current.density - prev.density),
-    current.velocity - 0.5 * minmod(next.velocity - current.velocity, current.velocity - prev.velocity)
+    right_minmod(prev.pressure, current.pressure, next.pressure),
+    right_minmod(prev.density, current.density, next.density),
+    right_minmod(prev.velocity, current.velocity, next.velocity)
   )
 end
 
@@ -98,6 +106,19 @@ function plain_difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
   dx = state.x[i_cell+1] - state.x[i_cell]
   dt = state.dt
   return u - dt / dx * (F_r - F_l)
+end
+
+function spherical_difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
+  u = state.u[i_cell]
+  F_l = state.F[i_cell]
+  F_r = state.F[i_cell+1]
+  dx = state.x[i_cell+1] - state.x[i_cell]
+  x = 0.5 * (state.x[i_cell+1] + state.x[i_cell])
+  dt = state.dt
+  flow = GasFlow.from_conservative(u)
+  Q = GasFlow.to_flux(flow)
+  q = @SVector [0.0, flow.pressure, 0.0]
+  return u - dt / dx * (F_r - F_l) + 2.0 / x * dt * (q - Q)
 end
 
 function left_soft_boundary_condition(state::Godunov.State)::SVector{3,Float64}
