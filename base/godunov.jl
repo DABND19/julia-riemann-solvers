@@ -1,6 +1,4 @@
-include("gas_flow.jl")
-include("flux_solver.jl")
-include("hllc.jl")
+module Godunov
 
 import JSON
 using Printf
@@ -72,20 +70,7 @@ function get_right_params(state::State, i_knot::Int)::GasFlow.Params
   )
 end
 
-function get_left_boundary_condition(state::State)::SVector{3,Float64}
-  flow = GasFlow.from_conservative(first(state.u))
-  return GasFlow.to_flux(flow)
-end
-
-function get_right_boundary_condition(state::State)::SVector{3,Float64}
-  flow = GasFlow.from_conservative(last(state.u))
-  return GasFlow.to_flux(flow)
-end
-
 function calculate_fluxes!(state::State)
-  state.F[firstindex(state.F)] = get_left_boundary_condition(state)
-  state.F[lastindex(state.F)] = get_right_boundary_condition(state)
-
   state.dt = Inf64
   for i_knot in range(firstindex(state.F) + 1, lastindex(state.F) - 1)
     left = get_left_params(state, i_knot)
@@ -106,7 +91,7 @@ function calculate_fluxes!(state::State)
   end
 end
 
-function difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
+function plain_difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
   u = state.u[i_cell]
   F_l = state.F[i_cell]
   F_r = state.F[i_cell+1]
@@ -115,25 +100,40 @@ function difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
   return u - dt / dx * (F_r - F_l)
 end
 
-function run!(state::State, t_end::Float64)
+function left_soft_boundary_condition(state::Godunov.State)::SVector{3,Float64}
+  flow = GasFlow.from_conservative(first(state.u))
+  return GasFlow.to_flux(flow)
+end
+
+function right_soft_boundary_condition(state::Godunov.State)::SVector{3,Float64}
+  flow = GasFlow.from_conservative(last(state.u))
+  return GasFlow.to_flux(flow)
+end
+
+function update_left_bound_flux!(state::State, boundary_condition::Function)
+  state.F[firstindex(state.F)] = boundary_condition(state)
+end
+
+function update_right_bound_flux!(state::State, boundary_condition::Function)
+  state.F[lastindex(state.F)] = boundary_condition(state)
+end
+
+function run!(state::State, t_end::Float64, difference_schema::Function, left_boundary_condition::Function, right_boundary_condition::Function)
   while state.t < t_end
     calculate_fluxes!(state)
     state.dt = min(state.dt, t_end - state.t)
 
-    @printf(stderr, "Current time: %f. Current time step: %e.\n", state.t, state.dt)
+    update_left_bound_flux!(state, left_boundary_condition)
+    update_right_bound_flux!(state, right_boundary_condition)
 
     for (i_cell, _) in enumerate(state.u)
       state.u[i_cell] = difference_schema(state, i_cell)
     end
 
+    @printf(stderr, "Current time: %f. Current time step: %e.\n", state.t, state.dt)
     state.t = state.t + state.dt
   end
 end
-
-const CELLS_COUNT::Int = 5000
-const X_LEFT::Float64 = -1.0
-const X_RIGHT::Float64 = 1.0
-const X_DIAPH::Float64 = 0.0
 
 function JSON.lower(state::State)
   x = [0.5 * (state.x[i+1] + state.x[i]) for (i, _) in enumerate(state.u)]
@@ -144,29 +144,4 @@ function JSON.lower(state::State)
   )
 end
 
-function main()
-  if length(ARGS) != 7
-    print(stderr, "You must provide 7 positional arguments.")
-  end
-  left = GasFlow.Params(
-    parse(Float64, ARGS[1]),
-    parse(Float64, ARGS[2]),
-    parse(Float64, ARGS[3])
-  )
-  right = GasFlow.Params(
-    parse(Float64, ARGS[4]),
-    parse(Float64, ARGS[5]),
-    parse(Float64, ARGS[6])
-  )
-  t_end = parse(Float64, ARGS[7])
-
-  x = collect(LinRange(X_LEFT, X_RIGHT, CELLS_COUNT + 1))
-  initial_flow = [0.5 * (x[i] + x[i+1]) < X_DIAPH ? left : right for i in range(1, CELLS_COUNT)]
-  state = State(x, initial_flow)
-  run!(state, t_end)
-
-  print(JSON.json(state))
-  println()
 end
-
-main()
