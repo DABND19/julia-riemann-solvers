@@ -6,9 +6,9 @@ import JSON
 using StaticArrays
 import Polyester
 
-import Main.FluxSolver
-import Main.GasFlow
-import Main.HLLC
+import ..RiemannSolvers.FluxSolver
+import ..RiemannSolvers.GasFlow
+import ..RiemannSolvers.HLLC
 
 const CFL::Float64 = 0.2
 
@@ -53,40 +53,64 @@ end
 
 @inline function get_left_params(state::State, i_knot::Int)::GasFlow.Params
   @assert i_knot != firstindex(state.F)
-  @inbounds begin
-    current = GasFlow.from_conservative(state.u[i_knot-1])
+  current = GasFlow.from_conservative(state.u[i_knot-1])
+  @inbounds current_dx = 0.5 * (state.x[i_knot] + state.x[i_knot-1])
 
-    if i_knot == firstindex(state.F) + 1 || i_knot == lastindex(state.F) - 1
-      return current
-    end
-    prev = GasFlow.from_conservative(state.u[i_knot-2])
-    next = GasFlow.from_conservative(state.u[i_knot])
-
-    return GasFlow.Params(
-      left_minmod(prev.pressure, current.pressure, next.pressure),
-      left_minmod(prev.density, current.density, next.density),
-      left_minmod(prev.velocity, current.velocity, next.velocity)
-    )
+  if i_knot == firstindex(state.F) + 1 || i_knot == lastindex(state.F) - 1
+    return current
   end
+
+  prev = GasFlow.from_conservative(state.u[i_knot-2])
+  @inbounds prev_dx = 0.5 * (state.x[i_knot-1] + state.x[i_knot-2])
+
+  next = GasFlow.from_conservative(state.u[i_knot])
+  @inbounds next_dx = 0.5 * (state.x[i_knot+1] + state.x[i_knot])
+
+  return GasFlow.Params(
+    current.pressure + current_dx * minmod(
+      (current.pressure - prev.pressure) / (current_dx + prev_dx),
+      (next.pressure - current.pressure) / (current_dx + next_dx)
+    ),
+    current.density + current_dx * minmod(
+      (current.density - prev.density) / (current_dx + prev_dx),
+      (next.density - current.density) / (current_dx + next_dx)
+    ),
+    current.velocity + current_dx * minmod(
+      (current.velocity - prev.velocity) / (current_dx + prev_dx),
+      (next.velocity - current.velocity) / (current_dx + next_dx)
+    ),
+  )
 end
 
 @inline function get_right_params(state::State, i_knot::Int)::GasFlow.Params
   @assert i_knot != lastindex(state.F)
-  @inbounds begin
-    current = GasFlow.from_conservative(state.u[i_knot])
+  current = GasFlow.from_conservative(state.u[i_knot])
+  @inbounds current_dx = 0.5 * (state.x[i_knot] + state.x[i_knot+1])
 
-    if i_knot == firstindex(state.F) + 1 || i_knot == lastindex(state.F) - 1
-      return current
-    end
-    prev = GasFlow.from_conservative(state.u[i_knot-1])
-    next = GasFlow.from_conservative(state.u[i_knot+1])
-
-    return GasFlow.Params(
-      right_minmod(prev.pressure, current.pressure, next.pressure),
-      right_minmod(prev.density, current.density, next.density),
-      right_minmod(prev.velocity, current.velocity, next.velocity)
-    )
+  if i_knot == firstindex(state.F) + 1 || i_knot == lastindex(state.F) - 1
+    return current
   end
+
+  prev = GasFlow.from_conservative(state.u[i_knot-1])
+  @inbounds prev_dx = 0.5 * (state.x[i_knot] + state.x[i_knot-1])
+
+  next = GasFlow.from_conservative(state.u[i_knot+1])
+  @inbounds next_dx = 0.5 * (state.x[i_knot+1] + state.x[i_knot+2])
+
+  return GasFlow.Params(
+    current.pressure - current_dx * minmod(
+      (current.pressure - prev.pressure) / (current_dx + prev_dx),
+      (next.pressure - current.pressure) / (current_dx + next_dx)
+    ),
+    current.density - current_dx * minmod(
+      (current.density - prev.density) / (current_dx + prev_dx),
+      (next.density - current.density) / (current_dx + next_dx)
+    ),
+    current.velocity - current_dx * minmod(
+      (current.velocity - prev.velocity) / (current_dx + prev_dx),
+      (next.velocity - current.velocity) / (current_dx + next_dx)
+    ),
+  )
 end
 
 function calculate_fluxes!(state::State{SolverStateT}) where {SolverStateT<:FluxSolver.State}

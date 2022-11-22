@@ -2,8 +2,8 @@ module HLLC
 
 using StaticArrays
 
-import Main.FluxSolver
-import Main.GasFlow
+import ..RiemannSolvers.FluxSolver
+import ..RiemannSolvers.GasFlow
 
 struct State <: FluxSolver.State
   left::GasFlow.Params
