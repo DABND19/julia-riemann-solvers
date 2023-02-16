@@ -35,7 +35,7 @@ function main()
 
   x = collect(LinRange(X_LEFT, X_RIGHT, cells_count + 1))
   initial_flow = [0.5 * (x[i] + x[i+1]) < X_DIAPH ? left : right for i in range(1, cells_count)]
-  state = Godunov.State(x, initial_flow)
+  state = Godunov.State{HLLC.State}(x, initial_flow)
 
   Godunov.run!(
     state,
@@ -49,4 +49,4 @@ function main()
   println()
 end
 
-main()
+@time main()

@@ -11,22 +11,22 @@ struct Params
   velocity::Float64
 end
 
-function sound_speed(flow::Params)::Float64
+@inline function sound_speed(flow::Params)::Float64
   if flow.pressure == 0.0 || flow.density == 0.0
     return 0.0
   end
   return sqrt(GAMMA * flow.pressure / flow.density)
 end
 
-function internal_energy(flow::Params)::Float64
+@inline function internal_energy(flow::Params)::Float64
   return flow.pressure / ((GAMMA - 1.0) * flow.density)
 end
 
-function total_energy(flow::Params)::Float64
+@inline function total_energy(flow::Params)::Float64
   return internal_energy(flow) + 0.5 * flow.velocity^2
 end
 
-function mach_number(flow::Params)::Float64
+@inline function mach_number(flow::Params)::Float64
   return abs(flow.velocity) / sound_speed(flow)
 end
 
@@ -43,7 +43,7 @@ function from_conservative(u::SVector{3, Float64})::Params
   return Params(pressure, density, velocity)
 end
 
-function to_conservative(flow::Params)::SVector{3, Float64}
+@inline function to_conservative(flow::Params)::SVector{3, Float64}
   return @SVector [
     flow.density,
     flow.density * flow.velocity,
@@ -51,7 +51,7 @@ function to_conservative(flow::Params)::SVector{3, Float64}
   ]
 end
 
-function to_flux(flow::Params)::SVector{3, Float64}
+@inline function to_flux(flow::Params)::SVector{3, Float64}
   return @SVector [
     flow.density * flow.velocity,
     flow.pressure + flow.density * flow.velocity^2,

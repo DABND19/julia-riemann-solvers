@@ -3,8 +3,8 @@ module Godunov
 using Base.Threads
 
 import JSON
-using Printf
 using StaticArrays
+import ThreadsX
 
 import Main.FluxSolver
 import Main.GasFlow
@@ -12,21 +12,26 @@ import Main.HLLC
 
 const CFL::Float64 = 0.2
 
-mutable struct State
+mutable struct State{SolverStateT<:FluxSolver.State}
   x::Vector{Float64}
   u::Vector{SVector{3,Float64}}
   F::Vector{SVector{3,Float64}}
   t::Float64
   dt::Float64
+  time_steps::Vector{Float64}
 
-  function State(x::Vector{Float64}, flow::Vector{GasFlow.Params})
+  function State{SolverStateT}(
+    x::Vector{Float64},
+    flow::Vector{GasFlow.Params}
+  ) where {SolverStateT<:FluxSolver.State}
     @assert length(x) == length(flow) + 1
     return new(
       x,
       map(GasFlow.to_conservative, flow),
       [@SVector zeros(Float64, 3) for _ in x],
       0.0,
-      0.0
+      0.0,
+      zeros(Float64, size(x)),
     )
   end
 end
@@ -84,29 +89,28 @@ end
   end
 end
 
-function calculate_fluxes!(state::State)
-  time_steps = zeros(Float64, size(state.F))
-  fill!(time_steps, Inf64)
+function calculate_fluxes!(state::State{SolverStateT}) where {SolverStateT<:FluxSolver.State}
+  fill!(state.time_steps, Inf64)
   @inbounds @threads for i_knot in range(firstindex(state.F) + 1, lastindex(state.F) - 1)
     left = get_left_params(state, i_knot)
     right = get_right_params(state, i_knot)
 
-    solution = HLLC.State(left, right)
+    solution = SolverStateT(left, right)
     state.F[i_knot] = FluxSolver.get_flux(solution)
 
-    dt = Inf64
+    knot_dt::Float64 = Inf64
     S_l, S_r = FluxSolver.get_wave_velocities(solution)
     if S_l != 0.0
       dx = state.x[i_knot] - state.x[i_knot-1]
-      dt = min(dt, CFL * dx / abs(S_l))
+      knot_dt = min(knot_dt, CFL * dx / abs(S_l))
     end
     if S_r != 0.0
       dx = state.x[i_knot+1] - state.x[i_knot]
-      dt = min(dt, CFL * dx / abs(S_r))
+      knot_dt = min(knot_dt, CFL * dx / abs(S_r))
     end
-    time_steps[i_knot] = dt
+    state.time_steps[i_knot] = knot_dt
   end
-  state.dt = minimum(time_steps)
+  state.dt = minimum(state.time_steps)
 end
 
 function plain_difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
@@ -161,17 +165,16 @@ function run!(state::State, t_end::Float64, difference_schema::Function, left_bo
     update_left_bound_flux!(state, left_boundary_condition)
     update_right_bound_flux!(state, right_boundary_condition)
 
-    @threads for i_cell in eachindex(state.u)
-      @inbounds state.u[i_cell] = difference_schema(state, i_cell)
+    @inbounds @threads for i_cell in eachindex(state.u)
+      state.u[i_cell] = difference_schema(state, i_cell)
     end
 
-    @printf(stderr, "Current time: %f. Current time step: %e.\n", state.t, state.dt)
     state.t = state.t + state.dt
   end
 end
 
 function JSON.lower(state::State)
-  x = [0.5 * (state.x[i+1] + state.x[i]) for (i, _) in enumerate(state.u)]
+  x = [0.5 * (state.x[i+1] + state.x[i]) for i in eachindex(state.u)]
   return Dict(
     "time" => state.t,
     "x" => x,
