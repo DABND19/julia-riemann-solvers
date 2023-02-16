@@ -1,13 +1,9 @@
-include("../base/gas_flow.jl")
-include("../base/flux_solver.jl")
-include("../base/hllc.jl")
-include("../base/godunov.jl")
+include("../riemann_solvers/RiemannSolvers.jl")
 
 using JSON
 using StaticArrays
 
-import Main.Godunov
-import Main.GasFlow
+using .RiemannSolvers
 
 const R_0::Float64 = 0.05
 const R_INF::Float64 = 1.0
