@@ -4,7 +4,7 @@ using Base.Threads
 
 import JSON
 using StaticArrays
-import ThreadsX
+import Polyester
 
 import Main.FluxSolver
 import Main.GasFlow
@@ -90,27 +90,24 @@ end
 end
 
 function calculate_fluxes!(state::State{SolverStateT}) where {SolverStateT<:FluxSolver.State}
-  fill!(state.time_steps, Inf64)
-  @inbounds @threads for i_knot in range(firstindex(state.F) + 1, lastindex(state.F) - 1)
+  @inbounds Polyester.@batch per=thread threadlocal=Inf64::Float64 for i_knot in range(firstindex(state.F) + 1, lastindex(state.F) - 1)
     left = get_left_params(state, i_knot)
     right = get_right_params(state, i_knot)
 
     solution = SolverStateT(left, right)
     state.F[i_knot] = FluxSolver.get_flux(solution)
 
-    knot_dt::Float64 = Inf64
     S_l, S_r = FluxSolver.get_wave_velocities(solution)
     if S_l != 0.0
       dx = state.x[i_knot] - state.x[i_knot-1]
-      knot_dt = min(knot_dt, CFL * dx / abs(S_l))
+      threadlocal = min(threadlocal, CFL * dx / abs(S_l))
     end
     if S_r != 0.0
       dx = state.x[i_knot+1] - state.x[i_knot]
-      knot_dt = min(knot_dt, CFL * dx / abs(S_r))
+      threadlocal = min(threadlocal, CFL * dx / abs(S_r))
     end
-    state.time_steps[i_knot] = knot_dt
   end
-  state.dt = minimum(state.time_steps)
+  state.dt = minimum(threadlocal)
 end
 
 function plain_difference_schema(state::State, i_cell::Int)::SVector{3,Float64}
@@ -165,7 +162,7 @@ function run!(state::State, t_end::Float64, difference_schema::Function, left_bo
     update_left_bound_flux!(state, left_boundary_condition)
     update_right_bound_flux!(state, right_boundary_condition)
 
-    @inbounds @threads for i_cell in eachindex(state.u)
+    @inbounds Polyester.@batch per=thread for i_cell in eachindex(state.u)
       state.u[i_cell] = difference_schema(state, i_cell)
     end
 

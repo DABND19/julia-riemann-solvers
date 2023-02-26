@@ -39,7 +39,7 @@ function main()
   r = collect(LinRange(R_0, R_INF, cells_count + 1))
   initial_flow = [exact_solution(0.5 * (r[i+1] + r[i])) for i in range(1, cells_count)]
 
-  state = Godunov.State(r, initial_flow)
+  state = Godunov.State{HLLC.State}(r, initial_flow)
 
   Godunov.run!(
     state,
