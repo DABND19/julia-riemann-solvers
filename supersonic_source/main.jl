@@ -1,13 +1,9 @@
-include("../base/gas_flow.jl")
-include("../base/flux_solver.jl")
-include("../base/hllc.jl")
-include("../base/godunov.jl")
+include("../riemann_solvers/RiemannSolvers.jl")
 
 using JSON
 using StaticArrays
 
-import Main.Godunov
-import Main.GasFlow
+using .RiemannSolvers
 
 const R_0::Float64 = 0.05
 const R_INF::Float64 = 1.0
@@ -43,7 +39,7 @@ function main()
   r = collect(LinRange(R_0, R_INF, cells_count + 1))
   initial_flow = [exact_solution(0.5 * (r[i+1] + r[i])) for i in range(1, cells_count)]
 
-  state = Godunov.State(r, initial_flow)
+  state = Godunov.State{HLLC.State}(r, initial_flow)
 
   Godunov.run!(
     state,

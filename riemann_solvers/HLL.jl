@@ -10,7 +10,7 @@ struct State <: FluxSolver.State
   right::GasFlow.Params
 end
 
-function FluxSolver.get_wave_velocities(state::State)::Tuple{Float64,Float64}
+@inline function FluxSolver.get_wave_velocities(state::State)::Tuple{Float64,Float64}
   u_l = state.left.velocity
   c_l = GasFlow.sound_speed(state.left)
 

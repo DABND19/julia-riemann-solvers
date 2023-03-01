@@ -10,7 +10,7 @@ struct State <: FluxSolver.State
   right::GasFlow.Params
 end
 
-function U_c_k(flow::GasFlow.Params, S_k::Float64, S_c::Float64)::SVector{3,Float64}
+@inline function U_c_k(flow::GasFlow.Params, S_k::Float64, S_c::Float64)::SVector{3,Float64}
   r_k = flow.density
   p_k = flow.pressure
   u_k = flow.velocity
@@ -20,7 +20,7 @@ function U_c_k(flow::GasFlow.Params, S_k::Float64, S_c::Float64)::SVector{3,Floa
   return c * @SVector [1.0, S_c, E_k + (S_c - u_k) * (S_c + p_k / (r_k * (S_k - u_k)))]
 end
 
-function get_contact_velocity(left::GasFlow.Params, right::GasFlow.Params, S_l::Float64, S_r::Float64)::Float64
+@inline function get_contact_velocity(left::GasFlow.Params, right::GasFlow.Params, S_l::Float64, S_r::Float64)::Float64
   p_l = left.pressure
   r_l = left.density
   u_l = left.velocity
@@ -35,7 +35,7 @@ function get_contact_velocity(left::GasFlow.Params, right::GasFlow.Params, S_l::
   return (p_r - p_l + u_l * m_l - u_r * m_r) / (m_l - m_r)
 end
 
-function FluxSolver.get_wave_velocities(state::State)::Tuple{Float64,Float64}
+@inline function FluxSolver.get_wave_velocities(state::State)::Tuple{Float64,Float64}
   u_l = state.left.velocity
   c_l = GasFlow.sound_speed(state.left)
 
