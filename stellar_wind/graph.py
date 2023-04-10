@@ -14,11 +14,11 @@ if __name__ == "__main__":
         with open(data_path) as f:
             data = json.load(f)
 
-        x = np.array(data["x"])
-        pressure = np.array(jmespath.search("solution[*].pressure", data))
-        density = np.array(jmespath.search("solution[*].density", data))
-        velocity = np.array(jmespath.search("solution[*].velocity", data))
-        mach_number = np.array(jmespath.search("solution[*].mach_number", data))
+        x = np.array(data["x"])[:12500]
+        pressure = np.array(jmespath.search("solution[*].pressure", data))[:12500]
+        density = np.array(jmespath.search("solution[*].density", data))[:12500]
+        velocity = np.array(jmespath.search("solution[*].velocity", data))[:12500]
+        mach_number = np.array(jmespath.search("solution[*].mach_number", data))[:12500]
 
         ax_1.plot(x, pressure, "--")
         ax_1.set_yscale('log')

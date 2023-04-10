@@ -1,7 +1,9 @@
 include("../riemann_solvers/RiemannSolvers.jl")
 
 using JSON
-using .RiemannSolvers
+import .RiemannSolvers.GasFlow
+import .RiemannSolvers.Godunov
+import .RiemannSolvers.HLLC
 
 const X_LEFT::Float64 = -1.0
 const X_RIGHT::Float64 = 1.0
@@ -37,7 +39,7 @@ function main()
   initial_flow = [0.5 * (x[i] + x[i+1]) < X_DIAPH ? left : right for i in range(1, cells_count)]
   state = Godunov.State{HLLC.State}(x, initial_flow)
 
-  @time Godunov.run!(
+  Godunov.run!(
     state,
     t_end,
     Godunov.plain_difference_schema,
@@ -45,8 +47,8 @@ function main()
     Godunov.right_soft_boundary_condition
   )
 
-  # print(JSON.json(state))
-  # println()
+  print(JSON.json(state))
+  println()
 end
 
 main()
