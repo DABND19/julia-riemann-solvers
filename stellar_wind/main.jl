@@ -49,6 +49,14 @@ function parse_shell_args()
       help = "End time"
       arg_type = Float64
       required = true
+    "--input-file"
+      help = "Input file"
+      arg_type = String
+      default = ""
+    "--frames-count"
+      help = "Frames count"
+      arg_type = Int64
+      default = 1
   end
 
   return parse_args(s)
@@ -78,6 +86,8 @@ end
 function main()
   args = parse_shell_args()
 
+  frames_count = args["frames-count"]
+  input_file = args["input-file"]
   M_E = args["Me"]
   K = args["K"]
   A = args["A"]
@@ -166,13 +176,23 @@ function main()
     end
   end
 
-  state = Godunov.State{HLLC.State}(
-    r,
+  initial = if input_file != ""
+    payload = JSON.parsefile(input_file)
+    [
+      GasFlow.Params(
+        item["pressure"],
+        item["density"],
+        item["velocity"],
+      )
+      for item in payload["solution"]
+    ]
+  else
     [
       GasFlow.Params(K, (GasFlow.GAMMA + 1.0) / (GasFlow.GAMMA - 1.0) * r_e^2, 0.0) 
       for i in range(1, lastindex(r)-1)
     ]
-  )
+  end
+  state = Godunov.State{HLLC.State}(r, initial)
 
   function left_boundary_condition(state::Godunov.State)::SVector{3,Float64}
     flow = GasFlow.Params(
@@ -200,16 +220,33 @@ function main()
     return FluxSolver.get_flux(solution)
   end
 
-  Godunov.run!(
-    state,
-    t_end,
-    h_difference_schema,
-    left_boundary_condition,
-    Godunov.right_soft_boundary_condition
-  )
-
-  print(json(state))
-  println()
+  if frames_count == 1
+    for t_cur in LinRange(0.0, t_end, 101)
+      print(stderr, t_cur, "\n")
+      Godunov.run!(
+        state,
+        t_cur,
+        h_difference_schema,
+        left_boundary_condition,
+        Godunov.right_soft_boundary_condition
+      )
+    end
+    print(json(state))
+    println()
+  else
+    for t_cur in LinRange(0.0, t_end, frames_count + 1)
+      print(stderr, t_cur, "\n")
+      Godunov.run!(
+        state,
+        t_cur,
+        h_difference_schema,
+        left_boundary_condition,
+        Godunov.right_soft_boundary_condition
+      )
+      print(json(state))
+      println()
+    end
+  end
 end
 
 main()
