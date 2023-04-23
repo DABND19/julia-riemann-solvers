@@ -121,14 +121,18 @@ function main()
       flow = GasFlow.from_conservative(u)
       Q = GasFlow.to_flux(flow)
 
-      nu_ph_x = nu_ph(x)
-      n_h_x = n_h(x)
-      freqs_sum = (nu_ph_x + nu_ce(flow))
-      Q_h = @SVector [
-        n_h_x * nu_ph_x,
-        -n_h_x * flow.velocity * freqs_sum,
-        -0.5 * n_h_x * flow.velocity^2 * freqs_sum,
-      ]
+      Q_h = if GasFlow.mach_number(flow) >= 1.0
+        nu_ph_x = nu_ph(x)
+        n_h_x = n_h(x)
+        freqs_sum = (nu_ph_x + nu_ce(flow))
+        @SVector [
+          n_h_x * nu_ph_x,
+          -n_h_x * flow.velocity * freqs_sum,
+          -0.5 * n_h_x * flow.velocity^2 * freqs_sum,
+        ]
+      else
+        @SVector zeros(3)
+      end
 
       q = @SVector [0.0, flow.pressure, 0.0]
       return u - dt / dx * (F_r - F_l) + 2.0 / x * dt * (q - Q) + Q_h * dt
